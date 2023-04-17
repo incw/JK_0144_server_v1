@@ -7,6 +7,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Bundle
+import android.webkit.WebSettings
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -14,34 +15,31 @@ import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.firestore.ktx.getField
 import com.google.firebase.ktx.Firebase
 import com.template.databinding.ActivityLoadingBinding
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.UserAgent
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.*
+import java.util.TimeZone
+import java.util.UUID
 
 class LoadingActivity : AppCompatActivity() {
-
     private var _binding: ActivityLoadingBinding? = null
     private val binding: ActivityLoadingBinding
         get() = _binding ?: throw RuntimeException("ActivityLoadingBinding == null")
-
     private lateinit var preferences: SharedPreferences
     private lateinit var analytics: FirebaseAnalytics
-
     private val db = Firebase.firestore
-
     private var randomID = UUID.randomUUID()
-
     private var timeZone: String = TimeZone.getDefault().id
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
         _binding = ActivityLoadingBinding.inflate(layoutInflater)
@@ -49,30 +47,29 @@ class LoadingActivity : AppCompatActivity() {
         setContentView(binding.root)
         init()
         startApp()
-
     }
 
+    private fun getUserAgent(): String {
+        return WebSettings.getDefaultUserAgent(this)
+    }
 
     private suspend fun ktor() {
-
         val packageName = applicationContext.packageName.toString()
         val baseUrl = preferences.getString(LINK_KEY, null)
 
         val client = HttpClient(CIO) {
-            BrowserUserAgent()
+            install(UserAgent){
+                agent = getUserAgent()
+            }
         }
-
         val response: HttpResponse = client.get(
             baseUrl ?: throw RuntimeException("url is null")
         ) {
-
             parameter(PACKAGE_ID_QUERY_PARAM, packageName)
             parameter(USER_ID_QUERY_PARAM, randomID)
             parameter(TIME_ZONE_QUERY_PARAM, timeZone)
             parameter(GETR_QUERY_PARAM, LAST)
-
         }
-
         when (response.status) {
             HttpStatusCode.OK -> {
                 saveLinkPref(FINAL_URL, response.bodyAsText().trim())
@@ -100,11 +97,7 @@ class LoadingActivity : AppCompatActivity() {
     }
 
     private fun fireBaseFireStore() {
-
-
         val docRef = db.collection("database").document("check")
-
-
         docRef.get().addOnSuccessListener { document ->
             if (document != null) {
                 val result = document.getField<String>("link")
@@ -169,15 +162,24 @@ class LoadingActivity : AppCompatActivity() {
     }
 
     private fun startApp() {
+
         if (isFinalExist() && network(this)) {
             launchWebViewActivity()
         } else if (checkFirst() && network(this)) {
+            putFirstStartApp()
             fireBaseFireStore()
         } else if (checkFirst() && !network(this)) {
             launchMainActivity()
         } else if (!network(this)) {
             launchMainActivity()
+        } else if (!checkFirst() && !isFinalExist() && network(this) || !checkFirst() && !fireStoreUrl() && network(
+                this
+            )
+        ) {
+            putFirstStartApp()
+            launchMainActivity()
         }
+
     }
 
     private fun isFinalExist(): Boolean {

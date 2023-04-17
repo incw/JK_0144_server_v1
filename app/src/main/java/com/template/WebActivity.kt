@@ -3,117 +3,97 @@ package com.template
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Bitmap
 import android.os.Bundle
+import android.util.Log
 import android.webkit.*
 import androidx.appcompat.app.AppCompatActivity
 import com.template.databinding.ActivityWebBinding
-import io.ktor.http.*
 
 @SuppressLint("SetJavaScriptEnabled")
 class WebActivity : AppCompatActivity() {
 
     private lateinit var preferences: SharedPreferences
-
+    val historyList: ArrayList<String> = arrayListOf()
+    private var _false = false
     private var _binding: ActivityWebBinding? = null
     private val binding: ActivityWebBinding
         get() = _binding ?: throw RuntimeException("ActivityWebBinding == null")
-
-
-    private lateinit var cookieManager: CookieManager
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityWebBinding.inflate(layoutInflater)
-        webViewSettings()
         setContentView(binding.root)
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+        binding.webView.settings.javaScriptEnabled = true
         if (savedInstanceState != null) {
             binding.webView.restoreState(savedInstanceState)
         }
-        preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
-
-
+        webViewSettings()
     }
 
     private fun webViewSettings() = with(binding) {
 
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
         supportActionBar?.hide()
-
         preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
+        val defaultUserAgent = WebSettings.getDefaultUserAgent(baseContext)
 
-        val defaultUserAgent = WebSettings.getDefaultUserAgent(applicationContext)
         val loadUrl = preferences.getString(FINAL_URL, null)
-
-        webView.webViewClient = WebViewClient()
-
-        webView.settings.userAgentString = defaultUserAgent
         webView.settings.javaScriptEnabled = true
-        webView.settings.userAgentString
+        webView.webViewClient = object : WebViewClient() {
 
 
-        cookieManager = CookieManager.getInstance()
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                view?.settings?.userAgentString = defaultUserAgent
+            }
 
-        val cookies = cookieManager.getCookie(loadUrl)
-
-        if (cookies != null) {
-            val cookieHeader = HashMap<String, String>()
-            cookieHeader["Cookie"] = cookies
-            webView.loadUrl(loadUrl ?: throw RuntimeException("cannot find url"), cookieHeader)
-        } else {
-            webView.loadUrl(loadUrl ?: throw RuntimeException("cannot find url"))
+            override fun onPageFinished(view: WebView?, url: String?) {
+                CookieManager.getInstance().flush()
+                if (url != null) {
+                    historyList.add(url)
+                }
+                Log.d("list", historyList.toString())
+            }
         }
+        WebView.setWebContentsDebuggingEnabled(true)
+
+        webView.loadUrl(loadUrl ?: throw RuntimeException("loadUrl was null"))
 
     }
 
-
-    override fun onPause() {
-        super.onPause()
-
-        preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
-        val cookies = cookieManager.getCookie(preferences.getString(FINAL_URL, null))
-        preferences.edit().putString(COOKIES, cookies).apply()
-
+    private fun lastItem(): String {
+        _false = true
+        val lastItem = historyList.last()
+        if (historyList.size > 1) {
+            historyList.clear()
+            historyList.add(lastItem)
+        }
+        return lastItem
     }
-
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         binding.webView.saveState(outState)
     }
-
-    override fun onResume() {
-        preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
-        val cookies = preferences.getString(COOKIES, null)
-        if (cookies != null) {
-            cookieManager.setCookie(preferences.getString(FINAL_URL, null), cookies)
-            cookieManager.flush()
-        }
-        super.onResume()
-    }
-
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() = with(binding) {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        }
-    }
-
     override fun onStop() {
         super.onStop()
-        preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
-        val cookies = cookieManager.getCookie(preferences.getString(FINAL_URL, null))
-        preferences.edit().putString(COOKIES, cookies).apply()
+        CookieManager.getInstance().flush()
     }
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (!_false) {
+            lastItem()
+            _false = true
+        }
+        if (historyList.size > 1) {
+            historyList.removeAt(historyList.lastIndex)
+            binding.webView.goBack()
+        }
 
-    override fun onDestroy() {
-
-        super.onDestroy()
-        preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
-        val cookies = cookieManager.getCookie(preferences.getString(FINAL_URL, null))
-        preferences.edit().putString(COOKIES, cookies).apply()
     }
-
     companion object {
         const val FINAL_URL = "final_url"
-        const val COOKIES = "cookies"
     }
 }

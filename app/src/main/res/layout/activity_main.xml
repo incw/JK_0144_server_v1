@@ -12,7 +12,6 @@
         android:text="Hello World!"
         android:layout_gravity="center"
         android:textSize="24sp"
-        android:textColor="@color/black"
         />
 
 </FrameLayout>

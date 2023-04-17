@@ -16,5 +16,5 @@ dependencyResolutionManagement {
 }
 
 
-rootProject.name = "JK_0144_server_v1"
+rootProject.name = "JK_0144_server_v5"
 include ':app'
