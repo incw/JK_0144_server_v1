@@ -70,7 +70,7 @@ class WebActivity : AppCompatActivity() {
 
         preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
         val cookies = cookieManager.getCookie(preferences.getString(FINAL_URL, null))
-        val pref = preferences.edit().putString(COOKIES, cookies).apply()
+        preferences.edit().putString(COOKIES, cookies).apply()
 
     }
 
@@ -81,13 +81,12 @@ class WebActivity : AppCompatActivity() {
 
     override fun onResume() {
         preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
-        super.onResume()
         val cookies = preferences.getString(COOKIES, null)
         if (cookies != null) {
             cookieManager.setCookie(preferences.getString(FINAL_URL, null), cookies)
             cookieManager.flush()
-
         }
+        super.onResume()
     }
 
 
@@ -98,12 +97,19 @@ class WebActivity : AppCompatActivity() {
         }
     }
 
-    override fun onDestroy() {
+    override fun onStop() {
+        super.onStop()
         preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
         val cookies = cookieManager.getCookie(preferences.getString(FINAL_URL, null))
-        val pref = preferences.edit().putString(COOKIES, cookies).apply()
-        super.onDestroy()
+        preferences.edit().putString(COOKIES, cookies).apply()
+    }
 
+    override fun onDestroy() {
+
+        super.onDestroy()
+        preferences = getSharedPreferences("LINKS", Context.MODE_PRIVATE)
+        val cookies = cookieManager.getCookie(preferences.getString(FINAL_URL, null))
+        preferences.edit().putString(COOKIES, cookies).apply()
     }
 
     companion object {

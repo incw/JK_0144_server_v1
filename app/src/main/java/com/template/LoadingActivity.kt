@@ -78,8 +78,12 @@ class LoadingActivity : AppCompatActivity() {
                 saveLinkPref(FINAL_URL, response.bodyAsText().trim())
                 launchWebViewActivity()
             }
+            HttpStatusCode.Forbidden -> {
+                putFirstStartApp()
+                launchMainActivity()
+            }
             else -> {
-                putFirst()
+                putFirstStartApp()
                 launchMainActivity()
             }
         }
@@ -96,27 +100,40 @@ class LoadingActivity : AppCompatActivity() {
     }
 
     private fun fireBaseFireStore() {
+
+
         val docRef = db.collection("database").document("check")
+
+
         docRef.get().addOnSuccessListener { document ->
             if (document != null) {
                 val result = document.getField<String>("link")
-                saveLinkPref(LINK_KEY, result.toString())
-                if (fireStoreUrl()) {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        response()
+                if (result != null && result.isNotEmpty() && result != "" && result != "error") {
+                    saveLinkPref(LINK_KEY, result.toString())
+                    if (fireStoreUrl()) {
+                        putFirstStartApp()
+                        CoroutineScope(Dispatchers.IO).launch {
+                            response()
+                        }
+                    } else {
+                        putFirstStartApp()
+                        launchMainActivity()
                     }
-                    putFirst()
                 } else {
-                    putFirst()
+                    putFirstStartApp()
                     launchMainActivity()
                 }
+            } else {
+                putFirstStartApp()
+                launchMainActivity()
             }
         }
 
         docRef.get().addOnFailureListener {
-            putFirst()
+            putFirstStartApp()
             launchMainActivity()
         }
+
     }
 
     private fun network(context: Context): Boolean {
@@ -145,7 +162,7 @@ class LoadingActivity : AppCompatActivity() {
         return preferences.getBoolean(FIRST_TIME, true)
     }
 
-    private fun putFirst(){
+    private fun putFirstStartApp() {
         val insertBoolean = preferences.edit()
         insertBoolean.putBoolean(FIRST_TIME, false)
         insertBoolean.apply()
